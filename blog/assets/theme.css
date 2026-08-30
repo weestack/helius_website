@@ -1,0 +1,1246 @@
+/* ============================================================================
+   theme.css — re-skins mkdocs-material to match the Astro site, and styles the
+   shared site chrome (.hx header / .fx footer) that gen-blog-chrome.mjs emits.
+
+   Design tokens come from assets/generated-tokens.css, which is ported straight
+   out of src/styles/tokens.css at build time (rem converted to px, active
+   palette flattened in). So the names here — var(--step-0), var(--space-m),
+   var(--accent) — are the SAME ones the Astro components use, and the two
+   halves cannot drift apart. Do not reintroduce hardcoded sizes or hexes.
+
+   Light and dark both come from that generated file, so this stylesheet is
+   scheme-agnostic: it maps tokens onto Material's variables once and the OS
+   preference decides the values. There is nothing to update by hand.
+   ========================================================================= */
+
+/* ── Material variable overrides ──────────────────────────────────────────
+   Both schemes are listed, because Material sets `data-md-color-scheme` to
+   `slate` or `default` depending on the OS preference and we want the same
+   token-driven colours either way. The actual light/dark values come from
+   generated-tokens.css, which has its own prefers-color-scheme block — so
+   these mappings are scheme-agnostic and only need writing once.
+
+   The `body` prefix is load-bearing, NOT redundant: Material defines these
+   same variables at equal specificity, so a bare
+   `[data-md-color-scheme='slate']` loses the tie and links stay Material blue.
+   ────────────────────────────────────────────────────────────────────── */
+body[data-md-color-scheme='slate'],
+body[data-md-color-scheme='default'] {
+  /*
+    Material derives its whole slate grey ramp from this in HSL degrees, and it
+    reaches places the token overrides below do not: scrollbars, admonition
+    tints, table stripes, the search overlay. It has to track --bg's hue or
+    those surfaces stay the old colour while everything else moves.
+
+    216 is the HSL hue of --bg (#121821). It was 160 when the neutrals were
+    green-tinted. Nothing generates or checks this value — if the palette hue
+    changes again, change it here by hand.
+  */
+  --md-hue: 216;
+
+  --md-default-bg-color: var(--bg);
+  --md-default-bg-color--light: var(--surface);
+  --md-default-bg-color--lighter: var(--surface-hi);
+  --md-default-bg-color--lightest: var(--border);
+
+  --md-default-fg-color: var(--text);
+  --md-default-fg-color--light: var(--text-dim);
+  --md-default-fg-color--lighter: var(--text-faint);
+  --md-default-fg-color--lightest: var(--border-hi);
+
+  --md-primary-fg-color: var(--bg-deep);
+  --md-primary-bg-color: var(--text);
+  --md-primary-bg-color--light: var(--text-dim);
+
+  --md-accent-fg-color: var(--accent-hi);
+  --md-accent-fg-color--transparent: color-mix(in oklab, var(--accent) 12%, transparent);
+
+  --md-typeset-color: var(--text-dim);
+  --md-typeset-a-color: var(--accent);
+
+  --md-code-bg-color: var(--bg-deep);
+  --md-code-fg-color: var(--text-dim);
+  --md-code-hl-comment-color: var(--text-faint);
+  --md-code-hl-keyword-color: var(--accent-hi);
+  --md-code-hl-function-color: var(--accent);
+  /* Syntax accents. Deliberately literal rather than tokens — these are
+     language semantics, not brand colour. Overridden for light mode below,
+     where the dark-tuned pastels wash out. */
+  --md-code-hl-string-color: #a5d6a7;
+  --md-code-hl-number-color: #ffcc80;
+
+  --md-footer-bg-color: var(--bg-deep);
+  --md-footer-bg-color--dark: var(--bg-deep);
+  --md-footer-fg-color--light: var(--text-faint);
+}
+
+@media (prefers-color-scheme: light) {
+  body[data-md-color-scheme='default'] {
+    --md-code-hl-string-color: #2e7d32;
+    --md-code-hl-number-color: #a1531c;
+  }
+}
+
+/* ── typography ───────────────────────────────────────────────────────── */
+body,
+input,
+.md-typeset {
+  font-family: var(--font-sans);
+}
+
+code,
+kbd,
+pre,
+.md-typeset code {
+  font-family: var(--font-mono);
+}
+
+.md-typeset h1,
+.md-typeset h2,
+.md-typeset h3 {
+  color: var(--text);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SITE CHROME — header (.hx) and footer (.fx)
+   Markup is generated from src/data by scripts/gen-blog-chrome.mjs; this is
+   the styling that makes /blog look like the rest of helius.dk rather than a
+   docs site bolted on the side.
+
+   Values are duplicated from src/styles/tokens.css via the --* variables at
+   the top of this file — MkDocs Material cannot read Astro's stylesheet.
+   ══════════════════════════════════════════════════════════════════════ */
+
+/*
+  Prefixed with body[data-md-color-primary] on purpose. The `primary:` key in
+  mkdocs.yml makes Material emit `[data-md-color-primary=black] .md-header {
+  background-color: ... }`, which is (0,2,0) and beats a bare `.md-header`.
+  Without the prefix the header keeps Material's primary colour and ignores the
+  tokens — which showed up as a dark header sitting on a light page.
+*/
+body[data-md-color-primary] .md-header,
+.md-header {
+  background: color-mix(in oklab, var(--bg) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(14px);
+  box-shadow: none;
+  color: var(--text);
+}
+
+body[data-md-color-primary] .md-tabs,
+.md-tabs {
+  background: var(--bg-deep);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+/*
+  Every declaration below mirrors its counterpart in src/components/Header.astro
+  and MegaMenu.astro, using the SAME tokens. If you change a size here, change
+  it there — or better, change the token and let both follow.
+*/
+.hx__inner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-m);
+  height: var(--header-h);
+  max-width: var(--width-wide);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* ── brand ── mirrors .hdr__brand / .hdr__mark / .hdr__name ───────────── */
+.hx__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex: none;
+  font-size: var(--step-1);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text);
+}
+
+.hx__brand svg {
+  /* px, not em/rem: em would scale off the 22.4px brand text, rem off
+     Material's 22px root. Both are wrong. Value = the site's 1.15rem × 16.
+
+     Height-driven with width:auto, because the window mark's viewBox is 112x88.
+     A square width/height pair would letterbox it — preserveAspectRatio would
+     fit the 112-wide art into the shorter axis and centre it, so the mark would
+     render smaller than asked for and sit off the text baseline. */
+  height: 18.4px;
+  width: auto;
+  flex: none;
+  fill: currentColor;
+  color: var(--accent);
+  transition: color var(--dur) var(--ease-out);
+}
+
+.hx__brand:hover svg {
+  color: var(--accent-hi);
+}
+
+/* ── nav ── mirrors .hdr__nav / .hdr__navList / .hdr__navLink ─────────── */
+.hx__nav {
+  flex: 1;
+}
+
+.hx__nav > ul {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hx__item {
+  position: relative;
+  margin: 0;
+}
+
+.hx__link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  padding: var(--space-2xs) var(--space-xs);
+  font-size: var(--step-0);
+  font-weight: var(--weight-medium);
+  white-space: nowrap; /* "Open Source" must not break across two lines */
+  color: var(--text-dim);
+  background: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.hx__link:hover,
+.hx__item:focus-within > .hx__link {
+  color: var(--text);
+  background: var(--surface);
+}
+
+.hx__caret {
+  width: 0.85em;
+  height: 0.85em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.hx__item:hover .hx__caret,
+.hx__item:focus-within .hx__caret {
+  transform: rotate(180deg);
+}
+
+/* ── dropdown panel ── mirrors .mm__* in MegaMenu.astro ───────────────── */
+.hx__panel {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  translate: -50% 0;
+  margin-top: var(--space-2xs);
+  display: grid;
+  gap: var(--space-m);
+  padding: var(--space-m);
+  min-width: 352px; /* site: 22rem */
+  text-align: left;
+  background: color-mix(in oklab, var(--surface) 96%, transparent);
+  border: var(--border-w) solid var(--border-hi);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 24px 60px -20px rgb(0 0 0 / 0.7),
+    0 0 0 1px color-mix(in oklab, var(--accent) 8%, transparent);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transition:
+    opacity var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out),
+    visibility var(--dur);
+}
+
+.hx__panel--feature {
+  grid-template-columns: 1fr minmax(240px, 272px); /* site: 15rem / 17rem */
+}
+
+/* Hover for pointers, focus-within for keyboards — same as the Astro header,
+   so the menu works with JavaScript disabled. */
+.hx__item--panel:hover > .hx__panel,
+.hx__item--panel:focus-within > .hx__panel {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.hx__cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(208px, 1fr)); /* site: 13rem */
+  gap: var(--space-m);
+  align-content: start;
+}
+
+.hx__colHead {
+  margin: 0 0 var(--space-2xs);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.hx__col ul {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hx__col li {
+  margin: 0;
+}
+
+.hx__col a {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: var(--space-2xs) var(--space-xs);
+  margin-inline: calc(var(--space-xs) * -1);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.hx__col a:hover {
+  background: var(--surface-hi);
+}
+
+.hx__linkLabel {
+  font-size: var(--step-0);
+  font-weight: var(--weight-medium);
+  color: var(--text);
+}
+
+.hx__col a:hover .hx__linkLabel {
+  color: var(--accent-hi);
+}
+
+.hx__linkDesc {
+  font-size: var(--step--1);
+  line-height: var(--leading-snug);
+  color: var(--text-faint);
+}
+
+.hx__all {
+  grid-column: 1 / -1;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding-top: var(--space-2xs);
+  border-top: var(--border-w) solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  letter-spacing: var(--tracking-wide);
+  color: var(--accent);
+}
+
+.hx__all:hover {
+  color: var(--accent-hi);
+}
+
+.hx__all svg,
+.hx__featureCta svg {
+  width: 0.9em;
+  height: 0.9em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.hx__all:hover svg,
+.hx__feature:hover .hx__featureCta svg {
+  transform: translateX(3px);
+}
+
+.hx__feature {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-s);
+  background: var(--bg-deep);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-md);
+  transition:
+    border-color var(--dur) var(--ease-out),
+    background-color var(--dur) var(--ease-out);
+}
+
+.hx__feature:hover {
+  border-color: var(--accent-dim);
+  background: var(--surface);
+}
+
+.hx__featureTitle {
+  font-size: var(--step-0);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  color: var(--text);
+}
+
+.hx__featureBody {
+  font-size: var(--step--1);
+  line-height: var(--leading-normal);
+  color: var(--text-dim);
+}
+
+.hx__featureCta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  margin-top: auto;
+  padding-top: var(--space-2xs);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--accent);
+}
+
+/* ── actions ── mirrors .hdr__actions / .lang / Button size="sm" ──────── */
+.hx__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  flex: none;
+}
+
+.hx__lang {
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+.hx__langOpt {
+  padding: 0.15em 0.5em;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: var(--tracking-wide);
+  color: var(--text-faint);
+  border-radius: var(--radius-xs);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.hx__langOpt:hover {
+  color: var(--text);
+}
+
+.hx__langOpt.is-active {
+  color: var(--accent-ink);
+  background: var(--accent);
+}
+
+.hx__cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2xs);
+  padding: var(--space-3xs) var(--space-xs);
+  font-family: var(--font-sans);
+  font-size: var(--step--1);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  white-space: nowrap;
+  color: var(--accent-ink);
+  background: var(--accent);
+  border: var(--border-w) solid transparent;
+  border-radius: var(--radius-sm);
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.hx__cta:hover {
+  background: var(--accent-hi);
+  box-shadow: 0 0 0 1px var(--accent-hi), 0 8px 30px -8px var(--glow);
+  transform: translateY(-1px);
+}
+
+/* ── scheme toggle ──────────────────────────────────────────────────────
+   Mirrors .st in src/components/ui/SchemeToggle.astro. Markup comes from
+   scripts/gen-blog-chrome.mjs, behaviour from src/scripts/scheme.js. */
+.st {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms, background-color 150ms;
+}
+
+.st:hover {
+  color: var(--accent);
+  border-color: var(--border-hi);
+  background: var(--surface);
+}
+
+.st__icon {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  grid-area: 1 / 1;
+  display: none;
+}
+
+.st__text {
+  display: none;
+}
+
+html:not([data-scheme]) .st__icon--auto,
+html[data-scheme='light'] .st__icon--light,
+html[data-scheme='dark'] .st__icon--dark {
+  display: block;
+}
+
+/* ── search + drawer toggles ──────────────────────────────────────────── */
+
+/* Material's search box is sized for a full-width docs header. In this bar it
+   sits alongside the brand, five nav items, the language switcher and the CTA
+   — one control more than the Astro header carries — so a fixed width made the
+   row overflow the document by 66px just above the collapse breakpoint.
+
+   Rather than give the blog its own (wider) breakpoint and create a seam where
+   the two headers disagree, the search is made SHRINKABLE: it takes up to
+   200px when there is room and narrows as the row tightens. Every ancestor
+   needs min-width: 0, or flex refuses to shrink below their content width. */
+.hx__tools .md-search,
+.hx__tools .md-search__inner {
+  min-width: 0;
+  width: auto;
+}
+
+.hx__tools .md-search__form {
+  width: 100%;
+  max-width: 200px;
+}
+
+.hx__tools .md-search__input {
+  width: 100%;
+  max-width: none;
+}
+
+/* Keep Material's results overlay anchored to the (now narrower) field rather
+   than letting it establish its own width off-screen. */
+.hx__tools .md-search__output {
+  max-width: 100%;
+}
+
+.hx__tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  /* Shrinkable, not `flex: none` — this is the element that gives way when the
+     row tightens. With `none` the search kept its full width and pushed the
+     document 32px wider than the viewport just above the collapse breakpoint. */
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.hx__icon {
+  color: var(--text-dim);
+}
+
+.hx__icon:hover {
+  color: var(--accent);
+}
+
+/* The drawer only holds the blog's own archive/category nav, so it is hidden
+   wherever Material already shows that sidebar. */
+@media screen and (min-width: 76.25em) {
+  .hx__icon--drawer {
+    display: none;
+  }
+}
+
+/* ── responsive ── mirrors the Astro header's 60rem breakpoint ────────── */
+@media screen and (max-width: 76.1875em) {
+  /* Same breakpoint as the Astro header, so both collapse together.
+     The language switcher stays — it is small and there is no other way to
+     reach the Danish site from here. */
+  .hx__nav {
+    display: none;
+  }
+
+  .hx__inner {
+    gap: var(--space-xs);
+    justify-content: space-between;
+  }
+}
+
+@media screen and (max-width: 30em) {
+  .hx__cta {
+    display: none;
+  }
+}
+
+/*
+  Smallest phones. The blog header carries two controls the site header does
+  not (Material's search and drawer toggles), and with the scheme toggle added
+  the row ran 13px past a 320px viewport.
+
+  The language switcher is the one to drop: the blog is English-only, so its
+  only job here is a link to the Danish *site*, which the footer also provides.
+*/
+@media screen and (max-width: 22.5em) {
+  .hx__lang {
+    display: none;
+  }
+}
+
+/* ── code blocks ──────────────────────────────────────────────────────── */
+.md-typeset pre > code {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.md-typeset code {
+  border-radius: 3px;
+}
+
+/* ── links ──────────────────────────────────────────────────────────────
+   Colour set explicitly rather than left to --md-typeset-a-color, so this
+   holds even if a Material update reshuffles its palette cascade. */
+.md-typeset a {
+  color: var(--accent);
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  transition:
+    color 150ms,
+    border-color 150ms;
+}
+
+/* Headline links in blog post cards read as headings, not as links. */
+.md-typeset h1 a,
+.md-typeset h2 a,
+.md-typeset h3 a {
+  color: var(--text);
+  border-bottom: 0;
+}
+
+.md-typeset h1 a:hover,
+.md-typeset h2 a:hover,
+.md-typeset h3 a:hover {
+  color: var(--accent-hi);
+}
+
+/* Anchor permalinks (¶) should stay quiet. */
+.md-typeset .headerlink {
+  color: var(--text-faint);
+  border-bottom: 0;
+}
+
+.md-typeset a:hover {
+  color: var(--accent-hi);
+  border-bottom-color: var(--accent-hi);
+}
+
+/* ── sidebar / TOC nav ────────────────────────────────────────────────── */
+/* Specificity matches Material's own `.md-nav__item .md-nav__link--active`
+   rule — a bare `.md-nav__link--active` loses and the link stays Material blue. */
+.md-nav__link:hover,
+.md-nav__link:focus,
+.md-nav__item .md-nav__link--active,
+.md-nav__item .md-nav__link--active code,
+.md-nav__item .md-nav__link--active:hover {
+  color: var(--accent);
+}
+
+.md-nav__title {
+  color: var(--text);
+}
+
+/* ── integrated table of contents ─────────────────────────────────────────
+   toc.integrate moves the TOC out of its own right-hand sidebar and into the
+   left column, where on a post it lands directly under the "Metadata" block.
+   Material styles its label as bold sans; that sat next to a mono uppercase
+   "METADATA" heading and read as two different design systems in one column.
+   These rules make the two labels siblings.
+
+   Scoped to .md-post so the site nav's own titles elsewhere are untouched. */
+.md-post .md-nav--secondary > .md-nav__title {
+  padding: 0;
+  margin-top: var(--space-m);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+  background: none;
+  box-shadow: none;
+}
+
+.md-post .md-nav--secondary .md-nav__list {
+  margin-top: var(--space-2xs);
+}
+
+.md-post .md-nav--secondary .md-nav__link {
+  font-size: var(--step--1);
+  color: var(--text-dim);
+}
+
+.md-post .md-nav--secondary .md-nav__link:hover {
+  color: var(--accent-hi);
+}
+
+/* toc.follow marks the section you are reading. Without a visible treatment
+   the feature is running with nothing to show for it. */
+.md-post .md-nav--secondary .md-nav__link--active {
+  color: var(--accent);
+}
+
+/* The drawer title's logo — the one place Material's own theme.icon.logo still
+   renders, now that partials/header.html supplies the desktop brand itself.
+   Material sizes it as a square; the window mark's viewBox is 112x88, so
+   without this it letterboxes into the shorter axis and renders undersized. */
+.md-nav__button.md-logo svg,
+.md-logo svg {
+  width: auto;
+  color: var(--accent);
+}
+
+/* ── blog post cards ──────────────────────────────────────────────────── */
+.md-post--excerpt {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+  transition:
+    border-color 300ms,
+    background-color 300ms;
+}
+
+.md-post--excerpt:hover {
+  border-color: var(--border-hi);
+  background: var(--surface-hi);
+}
+
+.md-post__meta,
+.md-post--excerpt .md-post__meta {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* ── admonitions: green-tint the neutral ones ────────────────────────── */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 10px;
+  border-width: 1px;
+  border-left-width: 3px;
+  box-shadow: none;
+  background: var(--bg-deep);
+}
+
+.md-typeset .admonition.note,
+.md-typeset .admonition.info,
+.md-typeset .admonition.tip {
+  border-color: var(--accent-dim);
+}
+
+/* ── tables ───────────────────────────────────────────────────────────── */
+.md-typeset table:not([class]) {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.md-typeset table:not([class]) th {
+  background: var(--bg-deep);
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ── search ───────────────────────────────────────────────────────────── */
+.md-search__form {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.md-search__form:hover {
+  background: var(--surface-hi);
+}
+
+.md-search__output {
+  border-radius: 6px;
+}
+
+/* ── focus ring: same as the Astro site ──────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 3px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SITE FOOTER (.fx) — mirrors src/components/Footer.astro.
+   Material's own footer is reduced to just the prev/next post pagination;
+   see overrides/partials/footer.html.
+   ══════════════════════════════════════════════════════════════════════ */
+
+.md-footer {
+  background: transparent;
+}
+
+.md-footer__link {
+  color: var(--text-dim);
+}
+
+.md-footer__link:hover {
+  color: var(--accent-hi);
+  opacity: 1;
+}
+
+.md-footer__direction {
+  color: var(--text-faint);
+}
+
+/*
+  Every declaration below mirrors its counterpart in src/components/Footer.astro,
+  using the SAME tokens. Keep the two in step.
+*/
+.fx {
+  padding-block: var(--space-2xl) var(--space-l);
+  background: var(--bg-deep);
+  border-top: var(--border-w) solid var(--border);
+  font-size: var(--step--1);
+}
+
+.fx__inner {
+  max-width: var(--width-wide);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.fx__top {
+  display: grid;
+  grid-template-columns: minmax(256px, 352px) 1fr; /* site: 16rem / 22rem */
+  gap: var(--space-xl);
+  padding-bottom: var(--space-xl);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.fx__logo {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-size: var(--step-1);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--text);
+}
+
+/* Height-driven — see the note on .hx__brand svg. */
+.fx__logo svg {
+  height: 18.4px; /* site: 1.15rem */
+  width: auto;
+  flex: none;
+  fill: currentColor;
+  color: var(--accent);
+}
+
+.fx__tagline {
+  margin: var(--space-xs) 0 0;
+  max-width: 28ch;
+  line-height: var(--leading-normal);
+  color: var(--text-dim);
+}
+
+.fx__motto {
+  margin: var(--space-2xs) 0 0;
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  font-style: italic;
+  color: var(--text-faint);
+}
+
+.fx__mail {
+  display: inline-block;
+  margin-top: var(--space-s);
+  font-family: var(--font-mono);
+  color: var(--accent);
+  border-bottom: 1px solid color-mix(in oklab, var(--accent) 35%, transparent);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.fx__mail:hover {
+  color: var(--accent-hi);
+  border-bottom-color: var(--accent-hi);
+}
+
+.fx__social {
+  display: flex;
+  gap: var(--space-2xs);
+  margin-top: var(--space-s);
+}
+
+.fx__social a {
+  display: grid;
+  place-items: center;
+  width: 36px; /* site: 2.25rem */
+  height: 36px;
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-faint);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
+}
+
+.fx__social a:hover {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.fx__social svg {
+  width: 17.6px; /* site: 1.1rem */
+  height: 17.6px;
+  fill: currentColor;
+}
+
+.fx__cols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); /* site: 10rem */
+  gap: var(--space-m);
+}
+
+.fx__head {
+  margin: 0 0 var(--space-2xs);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.fx__col ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3xs);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fx__col li {
+  margin: 0;
+}
+
+.fx__col a {
+  color: var(--text-dim);
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.fx__col a:hover {
+  color: var(--accent-hi);
+}
+
+.fx__bottom {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: var(--space-2xs);
+  padding-top: var(--space-m);
+  color: var(--text-faint);
+}
+
+.fx__bottom p {
+  margin: 0;
+}
+
+.fx__built {
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+}
+
+@media screen and (max-width: 52em) {
+  .fx__top {
+    grid-template-columns: 1fr;
+    gap: var(--space-l);
+  }
+}
+
+/* ── scrollbar ────────────────────────────────────────────────────────── */
+html {
+  scrollbar-color: var(--border-hi) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-hi);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-dim);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   POST GRID (.pg) — the card layout on /blog, the archive and category views.
+   Markup: overrides/blog.html + overrides/partials/post.html
+
+   ── COLUMN COUNT ────────────────────────────────────────────────────────
+   Change --pg-cols below. That is the only edit needed; the responsive
+   step-downs are derived from it, so 2, 3 and 4 all behave.
+   ══════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --pg-cols: 3;
+}
+
+/* Material sizes its content column for prose (.md-grid caps it at 61rem).
+   A 3- or 4-across grid needs more, so list views opt out — but only those:
+   :has() lets us widen the ancestor container without touching post pages,
+   where the narrow measure is correct. */
+.md-main__inner:has(.pg-view) {
+  max-width: var(--width-wide);
+}
+
+.pg-view .md-content__inner {
+  max-width: none;
+}
+
+.pg-view .md-content__inner > .md-typeset {
+  max-width: var(--width-prose);
+}
+
+.pg {
+  display: grid;
+  grid-template-columns: repeat(var(--pg-cols), minmax(0, 1fr));
+  gap: var(--space-m);
+  margin-block: var(--space-l) var(--space-xl);
+}
+
+/* ── card ─────────────────────────────────────────────────────────────── */
+.pg__card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--surface);
+  border: var(--border-w) solid var(--border);
+  border-radius: var(--radius-lg);
+  transition:
+    border-color var(--dur) var(--ease-out),
+    background-color var(--dur) var(--ease-out),
+    transform var(--dur) var(--ease-out);
+}
+
+.pg__card:hover,
+.pg__card:focus-within {
+  border-color: var(--border-hi);
+  background: var(--surface-hi);
+  transform: translateY(-2px);
+}
+
+/* ── cover ────────────────────────────────────────────────────────────── */
+.pg__media {
+  display: block;
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: var(--bg-deep);
+  border-bottom: var(--border-w) solid var(--border);
+}
+
+.pg__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Muted by default so the green chrome stays the loudest thing on screen;
+     comes up to full on hover. Dark-mode values — the light-mode override
+     below drops the darkening, which reads as muddy on a white page. */
+  filter: saturate(0.75) brightness(0.85);
+  transition:
+    transform var(--dur-slow) var(--ease-out),
+    filter var(--dur-slow) var(--ease-out);
+}
+
+.pg__card:hover .pg__media img {
+  transform: scale(1.04);
+  filter: saturate(1) brightness(1);
+}
+
+/* ── body ─────────────────────────────────────────────────────────────── */
+.pg__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-m);
+  flex: 1;
+}
+
+.pg__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2xs);
+  font-family: var(--font-mono);
+  font-size: var(--step--2);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.pg__cat {
+  color: var(--accent);
+}
+
+.pg__title {
+  margin: 0;
+  font-size: var(--step-2);
+  font-weight: var(--weight-semibold);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  text-wrap: balance;
+}
+
+.pg__title a {
+  color: var(--text);
+  border-bottom: 0;
+  transition: color var(--dur-fast) var(--ease-out);
+}
+
+.pg__card:hover .pg__title a {
+  color: var(--accent-hi);
+}
+
+/* Stretched link: makes the whole card clickable without nesting <a>. */
+.pg__title a::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+}
+
+.pg__excerpt {
+  color: var(--text-dim);
+  font-size: var(--step--1);
+  line-height: var(--leading-normal);
+}
+
+.pg__excerpt p {
+  margin: 0;
+}
+
+/* The card already shows the title, so drop the one inside a fallback excerpt. */
+.pg__excerpt h1,
+.pg__excerpt h2 {
+  display: none;
+}
+
+/* Anything genuinely interactive in the excerpt must sit above the stretched
+   link, or it becomes unclickable. */
+.pg__excerpt a {
+  position: relative;
+  z-index: 1;
+}
+
+.pg__more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3xs);
+  margin-top: auto;
+  padding-top: var(--space-2xs);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--accent);
+}
+
+.pg__more svg {
+  width: 1em;
+  height: 1em;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--dur) var(--ease-out);
+}
+
+.pg__card:hover .pg__more svg {
+  transform: translateX(3px);
+}
+
+/* ── responsive: step down from whatever --pg-cols is set to ──────────── */
+@media screen and (max-width: 82em) {
+  .pg {
+    grid-template-columns: repeat(min(var(--pg-cols), 3), minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 66em) {
+  .pg {
+    grid-template-columns: repeat(min(var(--pg-cols), 2), minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 44em) {
+  .pg {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-color-scheme: light) {
+  /* On a light page, darkening the cover makes it look dirty rather than
+     recessed. Desaturate only. */
+  .pg__media img {
+    filter: saturate(0.85);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg__card:hover .pg__media img {
+    transform: none;
+  }
+}

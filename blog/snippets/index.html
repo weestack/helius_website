@@ -1,0 +1,1274 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Short, copy-pasteable fixes for Linux, Kubernetes and CI — the things worth writing down once.">
+      
+      
+        <meta name="author" content="Alexander Høgh">
+      
+      
+        <link rel="canonical" href="https://helius.dk/blog/snippets/">
+      
+      
+        <link rel="prev" href="../blackbox/">
+      
+      
+      
+      <link rel="icon" href="../assets/favicon.svg">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.44">
+    
+    
+      
+        <title>Snippets - Helius Blog</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.0253249f.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/generated-tokens.css">
+    
+      <link rel="stylesheet" href="../assets/theme.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    <script>
+/* ============================================================================
+   scheme.js — the light/dark control's behaviour.
+
+   Inlined VERBATIM into two places, from this single source:
+     · the Astro site — src/layouts/Base.astro reads this file at build time
+     · the MkDocs blog — scripts/gen-blog-chrome.mjs reads it and emits it into
+       overrides/main.html's {% block extrahead %}
+
+   That is why this is plain ES5-ish JavaScript with no imports, no optional
+   chaining and no template literals: it has to survive being pasted into a
+   Jinja template and run in <head> before anything else.
+
+   Three states. The localStorage key is absent for "auto":
+
+       auto (follow OS)  →  light  →  dark  →  auto …
+
+   IMPORTANT: the first block must stay synchronous and must run in <head>.
+   [data-scheme] decides the palette, so setting it after first paint would show
+   a flash of the wrong theme.
+   ========================================================================= */
+(function () {
+  var KEY = 'helius:scheme';
+  var root = document.documentElement;
+
+  function stored() {
+    try {
+      var v = localStorage.getItem(KEY);
+      return v === 'light' || v === 'dark' ? v : null;
+    } catch (e) {
+      return null; // private mode / storage disabled → behave as auto
+    }
+  }
+
+  /* ── 1. apply, before paint ──────────────────────────────────────── */
+  var current = stored();
+  if (current) root.setAttribute('data-scheme', current);
+  else root.removeAttribute('data-scheme');
+
+  /* What the user actually sees right now, resolving auto against the OS. */
+  function effective() {
+    var s = root.getAttribute('data-scheme');
+    if (s === 'light' || s === 'dark') return s;
+    return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+
+  /*
+    Keep <meta name="theme-color"> honest. The markup ships one tag per
+    prefers-color-scheme, which is right for "auto" but wrong the moment an
+    explicit choice overrides the OS — the mobile browser chrome would keep the
+    OS colour. So on an explicit choice we drop the media-scoped tags and use a
+    single unscoped one.
+  */
+  /* Must equal --bg in tokens.css and SCHEME_BG in src/data/site.ts. Three
+     hand-kept copies of one value; nothing checks them against each other, and
+     this one only shows its staleness AFTER the reader picks a scheme
+     explicitly, which is the hardest of the three to notice. */
+  var BG = { dark: '#121821', light: '#f6f9fc' };
+
+  function syncMeta() {
+    var explicit = root.getAttribute('data-scheme');
+    var media = document.querySelectorAll('meta[name="theme-color"][media]');
+    for (var i = 0; i < media.length; i++) {
+      media[i].disabled = !!explicit; // no-op in some browsers; harmless
+      media[i].setAttribute('content', explicit ? BG[effective()] : media[i].getAttribute('content'));
+    }
+    var solo = document.querySelector('meta[name="theme-color"]:not([media])');
+    if (explicit) {
+      if (!solo) {
+        solo = document.createElement('meta');
+        solo.setAttribute('name', 'theme-color');
+        document.head.appendChild(solo);
+      }
+      solo.setAttribute('content', BG[effective()]);
+    } else if (solo) {
+      solo.parentNode.removeChild(solo);
+    }
+  }
+
+  /*
+    MkDocs Material keys some of its own component colours off body attributes.
+    The blog's stylesheet maps both of its schemes onto our tokens, so this is
+    belt-and-braces rather than load-bearing — but leaving them stale makes
+    Material's search overlay and admonitions disagree with the page.
+  */
+  function syncMaterial() {
+    var body = document.body;
+    if (!body || !body.hasAttribute('data-md-color-scheme')) return;
+    var eff = effective();
+    body.setAttribute('data-md-color-scheme', eff === 'light' ? 'default' : 'slate');
+    body.setAttribute('data-md-color-primary', eff === 'light' ? 'white' : 'black');
+  }
+
+  /* ── 2. wire the buttons, once the DOM exists ────────────────────── */
+  function wire() {
+    syncMeta();
+    syncMaterial();
+
+    var btns = document.querySelectorAll('[data-scheme-toggle]');
+    if (!btns.length) return;
+
+    function label(btn) {
+      var s = root.getAttribute('data-scheme') || 'auto';
+      var name = btn.getAttribute('data-label-' + s) || s;
+      var prefix = btn.getAttribute('data-label-prefix') || '';
+      btn.setAttribute('aria-label', prefix + ': ' + name);
+      btn.setAttribute('title', prefix + ': ' + name);
+      var text = btn.querySelector('[data-scheme-text]');
+      if (text) text.textContent = name;
+    }
+
+    function refresh() {
+      for (var i = 0; i < btns.length; i++) label(btns[i]);
+      syncMeta();
+      syncMaterial();
+    }
+
+    function next() {
+      var s = root.getAttribute('data-scheme');
+      // auto → light → dark → auto
+      if (!s) return 'light';
+      if (s === 'light') return 'dark';
+      return null;
+    }
+
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener('click', function () {
+        var v = next();
+        try {
+          if (v) localStorage.setItem(KEY, v);
+          else localStorage.removeItem(KEY);
+        } catch (e) {
+          /* storage disabled: the attribute below still applies for this page */
+        }
+        if (v) root.setAttribute('data-scheme', v);
+        else root.removeAttribute('data-scheme');
+        refresh();
+      });
+    }
+
+    refresh();
+
+    /* While in auto, follow the OS live. */
+    var mq = window.matchMedia('(prefers-color-scheme: light)');
+    var onChange = function () {
+      if (!root.getAttribute('data-scheme')) refresh();
+    };
+    if (mq.addEventListener) mq.addEventListener('change', onChange);
+    /*
+      Safari < 14 has no addEventListener on MediaQueryList. This fallback is
+      deliberate, not legacy cruft. `astro check` reports it as a deprecation
+      hint — that is expected and not worth silencing: bracket notation does
+      not suppress it, and a ts-expect-error would be a lie about a branch we
+      intend to keep. Hints do not fail the build.
+    */
+    else if (mq.addListener) mq.addListener(onChange);
+
+    /*
+      Another tab changed the choice — keep them consistent. `storage` only
+      fires in OTHER tabs, which is exactly what we want.
+    */
+    window.addEventListener('storage', function (e) {
+      if (e.key !== KEY) return;
+      var v = stored();
+      if (v) root.setAttribute('data-scheme', v);
+      else root.removeAttribute('data-scheme');
+      refresh();
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
+
+  </script>
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="black" data-md-color-accent="teal">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#snippets" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      <header class="md-header md-header--shadow hx" data-md-component="header">
+  <nav class="hx__inner" aria-label="Header">
+
+    <!-- GENERATED by scripts/gen-blog-chrome.mjs — do not edit. -->
+<a class="hx__brand" href="/" aria-label="Helius">
+  <svg viewBox="8 20 112 88" aria-hidden="true"><mask id="hxWindow" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect x="0" y="0" width="128" height="128" fill="#fff"/><g fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M33.52 40 59.92 64 33.52 88"/><path d="M74.32 88h20.16"/></g></mask><rect x="8" y="20" width="112" height="88" rx="14" mask="url(#hxWindow)"/></svg><span>Helius</span>
+</a>
+
+<nav class="hx__nav" aria-label="Menu">
+  <ul><li class="hx__item hx__item--panel"><button class="hx__link" type="button" aria-expanded="false">Services<svg class="hx__caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="hx__panel hx__panel--feature">
+      <div class="hx__cols">
+        <div class="hx__col">
+          <p class="hx__colHead">Kernel &amp; Linux</p>
+          <ul>
+            
+              <li><a href="/services/kernel-security">
+                <span class="hx__linkLabel">Kernel security</span>
+                <span class="hx__linkDesc">Security that runs in the kernel, not beside it.</span>
+              </a></li>
+              <li><a href="/services/linux-hardening">
+                <span class="hx__linkLabel">Linux hardening</span>
+                <span class="hx__linkDesc">A fleet you can describe, and defend.</span>
+              </a></li>
+          </ul>
+        </div>
+        <div class="hx__col">
+          <p class="hx__colHead">Platform</p>
+          <ul>
+            
+              <li><a href="/services/performance">
+                <span class="hx__linkLabel">Performance</span>
+                <span class="hx__linkDesc">Measure first. Then fix the thing that was actually slow.</span>
+              </a></li>
+              <li><a href="/services/infrastructure">
+                <span class="hx__linkLabel">Infrastructure</span>
+                <span class="hx__linkDesc">Servers, clusters and pipelines described in files you own.</span>
+              </a></li>
+          </ul>
+        </div><a class="hx__all" href="/services">All services <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m0 0-5-5m5 5-5 5"/></svg></a></div>
+      <a class="hx__feature" href="/contact">
+         <span class="hx__featureTitle">Not sure where to start?</span>
+         <span class="hx__featureBody">Send me what hurts. I will tell you which of these it actually is — or that you do not need me.</span>
+         <span class="hx__featureCta">Get in touch <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13m0 0-5-5m5 5-5 5"/></svg></span>
+       </a>
+    </div></li><li class="hx__item hx__item--panel"><button class="hx__link" type="button" aria-expanded="false">Open Source<svg class="hx__caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="hx__panel">
+      <div class="hx__cols">
+        <div class="hx__col">
+          <p class="hx__colHead">How I work</p>
+          <ul>
+            
+              <li><a href="/open-source">
+                <span class="hx__linkLabel">The pledge</span>
+                <span class="hx__linkDesc">What you own when we are done</span>
+              </a></li>
+              <li><a href="/open-source#no-lock-in">
+                <span class="hx__linkLabel">No lock-in</span>
+                <span class="hx__linkDesc">Why there is no proprietary layer</span>
+              </a></li>
+              <li><a href="/blackbox">
+                <span class="hx__linkLabel">Blackbox Linux</span>
+                <span class="hx__linkDesc">An eBPF runtime tracer I am building in Rust</span>
+              </a></li>
+              <li><a href="https://github.com/weestack" target="_blank" rel="noopener noreferrer">
+                <span class="hx__linkLabel">GitHub</span>
+                <span class="hx__linkDesc">Code, in public</span>
+              </a></li>
+          </ul>
+        </div></div>
+      
+    </div></li><li class="hx__item hx__item--panel"><button class="hx__link" type="button" aria-expanded="false">Blog<svg class="hx__caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="hx__panel">
+      <div class="hx__cols">
+        <div class="hx__col">
+          <p class="hx__colHead">Writing</p>
+          <ul>
+            
+              <li><a href="/blog/">
+                <span class="hx__linkLabel">Posts</span>
+                <span class="hx__linkDesc">Long-form notes on Linux, Rust and eBPF</span>
+              </a></li>
+              <li><a href="/blog/snippets/">
+                <span class="hx__linkLabel">Snippets</span>
+                <span class="hx__linkDesc">Short, copy-pasteable fixes</span>
+              </a></li>
+              <li><a href="/blog/blackbox/">
+                <span class="hx__linkLabel">Blackbox Linux</span>
+                <span class="hx__linkDesc">Build notes from the project</span>
+              </a></li>
+          </ul>
+        </div></div>
+      
+    </div></li><li class="hx__item hx__item--panel"><button class="hx__link" type="button" aria-expanded="false">Company<svg class="hx__caret" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button><div class="hx__panel">
+      <div class="hx__cols">
+        <div class="hx__col">
+          <p class="hx__colHead">Helius</p>
+          <ul>
+            
+              <li><a href="/about">
+                <span class="hx__linkLabel">About</span>
+                <span class="hx__linkDesc">Who you are actually hiring</span>
+              </a></li>
+              <li><a href="/contact">
+                <span class="hx__linkLabel">Contact</span>
+                <span class="hx__linkDesc">Email. No forms.</span>
+              </a></li>
+          </ul>
+        </div></div>
+      
+    </div></li></ul>
+</nav>
+
+<div class="hx__actions">
+  <div class="hx__lang" role="group" aria-label="Language">
+    <span class="hx__langOpt is-active" aria-current="true">EN</span>
+    <a class="hx__langOpt" href="/da" hreflang="da">DA</a>
+  </div>
+  <button
+    type="button"
+    class="st"
+    data-scheme-toggle
+    data-label-auto="System"
+    data-label-light="Light"
+    data-label-dark="Dark"
+    data-label-prefix="Colour scheme"
+    aria-label="Colour scheme"
+    title="Colour scheme"
+  >
+    <svg class="st__icon st__icon--auto" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 0 0 16Z" fill="currentColor" stroke="none"/></svg>
+    <svg class="st__icon st__icon--light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.2 5.2l1.4 1.4M17.4 17.4l1.4 1.4M18.8 5.2l-1.4 1.4M6.6 17.4l-1.4 1.4"/></svg>
+    <svg class="st__icon st__icon--dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 1 1 9.5 4a7 7 0 0 0 10.5 10.5Z"/></svg>
+    <span class="st__text" data-scheme-text></span>
+  </button>
+  <a class="hx__cta" href="/contact">Get in touch</a>
+</div>
+
+    <div class="hx__tools">
+      
+        <label class="md-header__button md-icon hx__icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+          <a href="javascript:void(0)" class="md-search__icon md-icon" title="Share" aria-label="Share" data-clipboard data-clipboard-text="" data-md-component="search-share" tabindex="-1">
+            
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9a3 3 0 0 0-3 3 3 3 0 0 0 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.91 2.92 2.91s2.92-1.3 2.92-2.91A2.92 2.92 0 0 0 18 16.08"/></svg>
+          </a>
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      <label class="md-header__button md-icon hx__icon hx__icon--drawer" for="__drawer">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+      </label>
+    </div>
+  </nav>
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Helius Blog" class="md-nav__button md-logo" aria-label="Helius Blog" data-md-component="logo">
+      
+  
+  <!--
+  The Helius window mark, COMPACT variant — the brand logo, as a custom
+  mkdocs-material icon. Referenced from mkdocs.yml as `theme.icon.logo:
+  helius/window`; Material resolves that to overrides/.icons/<name>.svg and
+  inlines the file, so it inherits currentColor from the surrounding button.
+
+  Same art as src/components/Header.astro, src/components/Footer.astro and
+  public/favicon.svg. Four hand-kept copies, because each lives in a different
+  build with a different colour mechanism — if you change the geometry, change
+  all four. `grep -rn "M33.52 40"` finds them.
+
+  Material's own CSS sizes .md-logo svg as a square, which would letterbox this
+  112x88 viewBox; blog/assets/theme.css overrides the width back to auto.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="8 20 112 88">
+  <mask id="mdLogoWindow" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128">
+    <rect x="0" y="0" width="128" height="128" fill="#fff"/>
+    <g fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M33.52 40 59.92 64 33.52 88"/>
+      <path d="M74.32 88h20.16"/>
+    </g>
+  </mask>
+  <rect x="8" y="20" width="112" height="88" rx="14" mask="url(#mdLogoWindow)"/>
+</svg>
+
+    </a>
+    Helius Blog
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/weestack" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.6.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8M97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    weestack
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Blog
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../blackbox/" class="md-nav__link ">
+              
+  
+  <span class="md-ellipsis">
+    Blackbox
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            Blackbox
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="./" class="md-nav__link md-nav__link--active">
+              
+  
+  <span class="md-ellipsis">
+    Snippets
+  </span>
+  
+
+            </a>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Snippets
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Archive
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Archive
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../archive/2026/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    2026
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Categories
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Categories
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/cicd/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    CI/CD
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/databases/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Databases
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/infrastructure/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Infrastructure
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/kubernetes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Kubernetes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/linux/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Linux
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/meta/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Meta
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/observability/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Observability
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/operations/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Operations
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/performance/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Performance
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/rust/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Rust
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/security/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Security
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+    
+  
+  
+    <li class="md-nav__item">
+      <a href="../category/ebpf/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    eBPF
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="snippets">Snippets<a class="headerlink" href="#snippets" title="Permanent link">&para;</a></h1>
+<p>Short things worth writing down once so I stop re-deriving them at 3am. No
+narrative, no build-up — the command, what it does, and the caveat.</p>
+<p>Longer reasoning lives in <a href="../">posts</a>. Everything here is open source and
+copy-pasteable.</p>
+<hr />
+<h2 id="find-what-a-process-is-actually-waiting-on">Find what a process is actually waiting on<a class="headerlink" href="#find-what-a-process-is-actually-waiting-on" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># Live syscall latency histogram for one PID, no restart, no instrumentation.</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>sudo<span class="w"> </span>bpftrace<span class="w"> </span>-e<span class="w"> </span><span class="s1">'</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="s1">  tracepoint:raw_syscalls:sys_enter /pid == '</span><span class="s2">"</span><span class="nv">$PID</span><span class="s2">"</span><span class="s1">'/ { @s[tid] = nsecs; }</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="s1">  tracepoint:raw_syscalls:sys_exit  /pid == '</span><span class="s2">"</span><span class="nv">$PID</span><span class="s2">"</span><span class="s1">' &amp;&amp; @s[tid]/ {</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="s1">    @us[ksym(args-&gt;id)] = hist((nsecs - @s[tid]) / 1000); delete(@s[tid]);</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="s1">  }'</span>
+</span></code></pre></div>
+<p>Run it for 30 seconds before theorising. The answer is usually one syscall you
+were not thinking about.</p>
+<hr />
+<h2 id="which-files-does-this-service-open-most">Which files does this service open most?<a class="headerlink" href="#which-files-does-this-service-open-most" title="Permanent link">&para;</a></h2>
+<p>Good for finding filter candidates before you turn on verbose auditing.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>sudo<span class="w"> </span>timeout<span class="w"> </span>60s<span class="w"> </span>strace<span class="w"> </span>-f<span class="w"> </span>-qq<span class="w"> </span>-e<span class="w"> </span><span class="nv">trace</span><span class="o">=</span>openat<span class="w"> </span>-p<span class="w"> </span><span class="s2">"</span><span class="k">$(</span>pgrep<span class="w"> </span>-d,<span class="w"> </span>-f<span class="w"> </span>php-fpm<span class="k">)</span><span class="s2">"</span><span class="w"> </span><span class="m">2</span>&gt;<span class="p">&amp;</span><span class="m">1</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>sed<span class="w"> </span>-nE<span class="w"> </span><span class="s1">'s/.*openat\(.*"([^"]+)".*/\1/p'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="w">  </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span><span class="p">|</span><span class="w"> </span>uniq<span class="w"> </span>-c<span class="w"> </span><span class="p">|</span><span class="w"> </span>sort<span class="w"> </span>-nr<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-30
+</span></code></pre></div>
+<p><code>strace</code> costs real performance — do this on one host, not the fleet.</p>
+<hr />
+<h2 id="postgres-find-the-unindexed-query-before-adding-cache">Postgres: find the unindexed query before adding cache<a class="headerlink" href="#postgres-find-the-unindexed-query-before-adding-cache" title="Permanent link">&para;</a></h2>
+<div class="language-sql highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="k">SELECT</span><span class="w"> </span><span class="n">calls</span><span class="p">,</span><span class="w"> </span><span class="n">round</span><span class="p">(</span><span class="n">mean_exec_time</span><span class="p">::</span><span class="nb">numeric</span><span class="p">,</span><span class="w"> </span><span class="mi">1</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">avg_ms</span><span class="p">,</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="w">       </span><span class="n">round</span><span class="p">(</span><span class="n">total_exec_time</span><span class="p">::</span><span class="nb">numeric</span><span class="p">)</span><span class="w"> </span><span class="k">AS</span><span class="w"> </span><span class="n">total_ms</span><span class="p">,</span><span class="w"> </span><span class="n">query</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="w">  </span><span class="k">FROM</span><span class="w"> </span><span class="n">pg_stat_statements</span>
+</span><span id="__span-2-4"><a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="w"> </span><span class="k">WHERE</span><span class="w"> </span><span class="n">query</span><span class="w"> </span><span class="k">NOT</span><span class="w"> </span><span class="k">ILIKE</span><span class="w"> </span><span class="s1">'%pg_stat%'</span>
+</span><span id="__span-2-5"><a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="w"> </span><span class="k">ORDER</span><span class="w"> </span><span class="k">BY</span><span class="w"> </span><span class="n">total_exec_time</span><span class="w"> </span><span class="k">DESC</span>
+</span><span id="__span-2-6"><a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a><span class="w"> </span><span class="k">LIMIT</span><span class="w"> </span><span class="mi">15</span><span class="p">;</span>
+</span></code></pre></div>
+<p>Sort by <em>total</em> time, not mean. A 4ms query run 900k times beats a 2s query run
+twice, and only one of them is worth your afternoon.</p>
+<hr />
+<h2 id="systemd-unit-that-actually-restarts-on-failure">Systemd unit that actually restarts on failure<a class="headerlink" href="#systemd-unit-that-actually-restarts-on-failure" title="Permanent link">&para;</a></h2>
+<div class="language-ini highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">[Service]</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="na">Restart</span><span class="o">=</span><span class="s">always</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a><span class="na">RestartSec</span><span class="o">=</span><span class="s">2</span>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># Without these two, repeated crashes hit the default burst limit and</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># systemd gives up silently — the unit sits in "failed" until someone looks.</span>
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="na">StartLimitIntervalSec</span><span class="o">=</span><span class="s">0</span>
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="c1"># Kill the whole cgroup, not just the main pid.</span>
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="na">KillMode</span><span class="o">=</span><span class="s">control-group</span>
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="na">TimeoutStopSec</span><span class="o">=</span><span class="s">30</span>
+</span></code></pre></div>
+<hr />
+<h2 id="nftables-default-deny-that-does-not-lock-you-out">nftables: default-deny that does not lock you out<a class="headerlink" href="#nftables-default-deny-that-does-not-lock-you-out" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="c1"># Validate BEFORE loading. `nft -c` parses without applying.</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a>sudo<span class="w"> </span>nft<span class="w"> </span>-c<span class="w"> </span>-f<span class="w"> </span>/etc/nftables.conf<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>sudo<span class="w"> </span>nft<span class="w"> </span>-f<span class="w"> </span>/etc/nftables.conf
+</span></code></pre></div>
+<p>If you are applying over SSH, wrap it so a mistake self-reverts:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a>sudo<span class="w"> </span>systemd-run<span class="w"> </span>--on-active<span class="o">=</span><span class="m">120</span><span class="w"> </span>--timer-property<span class="o">=</span><span class="nv">AccuracySec</span><span class="o">=</span>1s<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span>nft<span class="w"> </span>flush<span class="w"> </span>ruleset
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="c1"># You now have 2 minutes to confirm you can still connect.</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="c1"># Still connected? Cancel it:  sudo systemctl stop run-r*.timer</span>
+</span></code></pre></div>
+<hr />
+<h2 id="kubectl-what-is-actually-eating-the-node">kubectl: what is actually eating the node<a class="headerlink" href="#kubectl-what-is-actually-eating-the-node" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-A<span class="w"> </span>-o<span class="w"> </span>custom-columns<span class="o">=</span><span class="se">\</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="s1">'NS:.metadata.namespace,NAME:.metadata.name,'</span><span class="se">\</span>
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a><span class="s1">'CPU_REQ:.spec.containers[*].resources.requests.cpu,'</span><span class="se">\</span>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="s1">'MEM_REQ:.spec.containers[*].resources.requests.memory,NODE:.spec.nodeName'</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span>--field-selector<span class="w"> </span>spec.nodeName<span class="o">=</span><span class="s2">"</span><span class="nv">$NODE</span><span class="s2">"</span><span class="w"> </span>--sort-by<span class="o">=</span>.metadata.namespace
+</span></code></pre></div>
+<p>Requests, not usage — this is what the scheduler reserved, which is what makes
+a node "full" while <code>top</code> looks idle.</p>
+<hr />
+<h2 id="reproducible-container-digest-in-ci">Reproducible container digest in CI<a class="headerlink" href="#reproducible-container-digest-in-ci" title="Permanent link">&para;</a></h2>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># Never deploy a tag. Tags move; digests do not.</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="nv">DIGEST</span><span class="o">=</span><span class="k">$(</span>docker<span class="w"> </span>buildx<span class="w"> </span>imagetools<span class="w"> </span>inspect<span class="w"> </span><span class="s2">"</span><span class="nv">$IMAGE</span><span class="s2">:</span><span class="nv">$TAG</span><span class="s2">"</span><span class="w"> </span><span class="se">\</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="w">  </span>--format<span class="w"> </span><span class="s1">'{{ "{{" }}.Manifest.Digest{{ "}}" }}'</span><span class="k">)</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>kubectl<span class="w"> </span><span class="nb">set</span><span class="w"> </span>image<span class="w"> </span>deploy/app<span class="w"> </span><span class="s2">"app=</span><span class="nv">$IMAGE</span><span class="s2">@</span><span class="nv">$DIGEST</span><span class="s2">"</span>
+</span></code></pre></div>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+    
+      
+      <nav class="md-footer__inner md-grid" aria-label="Footer" >
+        
+          
+          <a href="../blackbox/" class="md-footer__link md-footer__link--prev" aria-label="Previous: Blackbox Linux">
+            <div class="md-footer__button md-icon">
+              
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+            </div>
+            <div class="md-footer__title">
+              <span class="md-footer__direction">Previous</span>
+              <div class="md-ellipsis">Blackbox Linux</div>
+            </div>
+          </a>
+        
+        
+      </nav>
+    
+  
+</footer>
+
+<!-- GENERATED by scripts/gen-blog-chrome.mjs — do not edit. -->
+<div class="fx">
+  <div class="fx__inner">
+    <div class="fx__top">
+      <div class="fx__brand">
+        <a class="fx__logo" href="/"><svg viewBox="8 20 112 88" aria-hidden="true"><mask id="fxWindow" maskUnits="userSpaceOnUse" x="0" y="0" width="128" height="128"><rect x="0" y="0" width="128" height="128" fill="#fff"/><g fill="none" stroke="#000" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"><path d="M33.52 40 59.92 64 33.52 88"/><path d="M74.32 88h20.16"/></g></mask><rect x="8" y="20" width="112" height="88" rx="14" mask="url(#fxWindow)"/></svg><span>Helius</span></a>
+        <p class="fx__tagline">Open-source Linux and kernel engineering. No walls, no lock-in.</p>
+        <p class="fx__motto">&ldquo;What we know is but a vast ocean&rdquo;</p>
+        <a class="fx__mail" href="mailto:Alexander@helius.dk?subject=Infrastructure%20enquiry">Alexander@helius.dk</a>
+        <div class="fx__social"><a href="https://github.com/weestack" target="_blank" rel="noopener noreferrer" aria-label="GitHub">
+             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.89 1.53 2.34 1.09 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.56-1.11-4.56-4.95 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.65 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.38.2 2.4.1 2.65.64.7 1.03 1.59 1.03 2.68 0 3.85-2.34 4.7-4.57 4.95.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+           </a><a href="https://www.linkedin.com/in/alexander-hogh/" target="_blank" rel="noopener noreferrer" aria-label="LinkedIn">
+             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.98 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5ZM3 9h4v12H3V9Zm6 0h3.8v1.7h.05A4.2 4.2 0 0 1 16.6 8.7c3 0 4.4 1.9 4.4 5.3V21h-4v-6.3c0-1.6-.6-2.6-2-2.6-1.2 0-1.9.8-2.2 1.6-.1.3-.1.7-.1 1.1V21H9V9Z"/></svg>
+           </a></div>
+      </div>
+      <nav class="fx__cols" aria-label="Menu">
+    <div class="fx__col">
+      <p class="fx__head">Services</p>
+      <ul>
+        <li><a href="/services/kernel-security">Kernel security</a></li><li><a href="/services/linux-hardening">Linux hardening</a></li><li><a href="/services/performance">Performance</a></li><li><a href="/services/infrastructure">Infrastructure</a></li>
+      </ul>
+    </div>
+    <div class="fx__col">
+      <p class="fx__head">Open source</p>
+      <ul>
+        <li><a href="/open-source">The pledge</a></li><li><a href="/open-source#no-lock-in">No lock-in</a></li><li><a href="/blackbox">Blackbox Linux</a></li>
+      </ul>
+    </div>
+    <div class="fx__col">
+      <p class="fx__head">Company</p>
+      <ul>
+        <li><a href="/about">About</a></li><li><a href="/services">Services</a></li><li><a href="/blog/">Blog</a></li><li><a href="/contact">Contact</a></li>
+      </ul>
+    </div></nav>
+    </div>
+    <div class="fx__bottom">
+      <p>&copy; 2026 Helius &middot; Alexander Høgh. All rights reserved.</p>
+      <p class="fx__built">Built with Astro and MkDocs. Source-available.</p>
+    </div>
+  </div>
+</div>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.instant", "navigation.tracking", "navigation.top", "navigation.footer", "navigation.indexes", "search.suggest", "search.highlight", "search.share", "content.code.copy", "content.code.annotate", "toc.follow", "toc.integrate"], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.83f73b43.min.js"></script>
+      
+    
+  </body>
+</html>
