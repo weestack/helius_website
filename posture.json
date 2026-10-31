@@ -1,0 +1,109 @@
+{
+  "build": {
+    "scope": "build",
+    "checkedAt": "2026-10-31T10:49:06.672Z",
+    "host": "helius.dk",
+    "domain": "helius.dk",
+    "commit": "18f9171b1dfd0ab77df9544790b0f4ac53825bc8",
+    "summary": {
+      "pass": 2,
+      "warn": 0,
+      "fail": 0
+    },
+    "results": [
+      {
+        "id": "csp",
+        "status": "pass",
+        "detail": "script-src hash-only, no unsafe-inline (meta)"
+      },
+      {
+        "id": "third-party",
+        "status": "pass",
+        "detail": "every script, stylesheet, font and image is served from this site"
+      }
+    ]
+  },
+  "infra": {
+    "scope": "infra",
+    "checkedAt": "2026-10-25T20:42:28.038Z",
+    "host": "helius.dk",
+    "domain": "helius.dk",
+    "summary": {
+      "pass": 11,
+      "warn": 3,
+      "fail": 0
+    },
+    "results": [
+      {
+        "id": "https-redirect",
+        "status": "pass",
+        "detail": "http:// answers 301 → https://helius.dk/"
+      },
+      {
+        "id": "hsts",
+        "status": "pass",
+        "detail": "max-age=31536000; includeSubDomains"
+      },
+      {
+        "id": "tls",
+        "status": "pass",
+        "detail": "TLSv1.3 · certificate valid 60 more days"
+      },
+      {
+        "id": "nosniff",
+        "status": "pass",
+        "detail": "nosniff"
+      },
+      {
+        "id": "referrer-policy",
+        "status": "pass",
+        "detail": "strict-origin-when-cross-origin"
+      },
+      {
+        "id": "permissions-policy",
+        "status": "pass",
+        "detail": "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      },
+      {
+        "id": "framing",
+        "status": "pass",
+        "detail": "X-Frame-Options: DENY"
+      },
+      {
+        "id": "dnssec",
+        "status": "pass",
+        "detail": "helius.dk validates (AD bit set by a validating resolver)"
+      },
+      {
+        "id": "caa",
+        "status": "pass",
+        "detail": "helius.dk: 11 CAA record(s) restrict issuance"
+      },
+      {
+        "id": "spf",
+        "status": "warn",
+        "detail": "v=spf1 include:_spf.google.com include:_spf.protonmail.ch ~all (softfail; -all is stricter)"
+      },
+      {
+        "id": "dkim",
+        "status": "pass",
+        "detail": "selectors published: protonmail, protonmail2, protonmail3"
+      },
+      {
+        "id": "dmarc",
+        "status": "warn",
+        "detail": "v=DMARC1; p=quarantine (no rua= reporting)"
+      },
+      {
+        "id": "mta-sts",
+        "status": "warn",
+        "detail": "no MTA-STS policy (inbound TLS not enforced)"
+      },
+      {
+        "id": "security-txt",
+        "status": "pass",
+        "detail": "RFC 9116, expires in 179 days"
+      }
+    ]
+  }
+}

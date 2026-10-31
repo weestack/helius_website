@@ -1,0 +1,21 @@
+<!doctype html>
+<!--
+  Safety net. With build.format = 'file', Astro emits the Danish homepage as
+  /da.html, which GitHub Pages serves at /da. Anyone who types or shares
+  /da/ (with the slash) would otherwise get a 404, so this stub redirects them.
+
+  Lives in public/ because Astro copies that verbatim and never emits
+  dist/da/index.html itself — no collision.
+-->
+<html lang="da">
+  <head>
+    <meta charset="utf-8" />
+    <title>Helius</title>
+    <link rel="canonical" href="https://helius.dk/da" />
+    <meta name="robots" content="noindex" />
+    <meta http-equiv="refresh" content="0; url=/da" />
+  </head>
+  <body>
+    <p>Viderestiller til <a href="/da">helius.dk/da</a>…</p>
+  </body>
+</html>
