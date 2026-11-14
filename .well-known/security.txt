@@ -1,0 +1,8 @@
+# Helius ApS — vulnerability disclosure
+# Policy, scope and safe-harbour terms: https://helius.dk/security
+
+Contact: mailto:Alexander@helius.dk
+Expires: 2027-05-13T12:00:05Z
+Preferred-Languages: en, da
+Canonical: https://helius.dk/.well-known/security.txt
+Policy: https://helius.dk/security#disclosure
